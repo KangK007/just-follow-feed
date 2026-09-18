@@ -135,7 +135,7 @@ describe("mergeSyncResponse", () => {
 });
 
 describe("buildSyncBatches", () => {
-  it("keeps Douyin batches to one creator and Bilibili batches to ten", () => {
+  it("keeps Douyin batches to three creators and Bilibili batches to ten", () => {
     const creators: Creator[] = [
       ...Array.from({ length: 11 }, (_, index) => ({
         ...creator,
@@ -148,8 +148,7 @@ describe("buildSyncBatches", () => {
     expect(buildSyncBatches(creators).map((batch) => batch.map((item) => item.id))).toEqual([
       Array.from({ length: 10 }, (_, index) => `bilibili-${index}`),
       ["bilibili-10"],
-      ["douyin-1"],
-      ["douyin-2"],
+      ["douyin-1", "douyin-2"],
     ]);
   });
 

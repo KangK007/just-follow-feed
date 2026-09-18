@@ -401,7 +401,7 @@ export function FeedProvider({ children }: { children: ReactNode }) {
 
           let data;
           try {
-            data = await requestSyncBatch(batch, controller.signal);
+            data = await requestSyncBatch(batch, controller.signal, videosRef.current);
             if (!data.configured) throw new Error(data.error || "未配置本机抓取服务，请先运行 npm run start:local");
             if (!Array.isArray(data.results)) throw new Error(data.error || "同步服务返回的数据不完整");
           } catch (error) {

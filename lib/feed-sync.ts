@@ -58,7 +58,7 @@ export type SyncMergeResult = SyncStateSnapshot & {
 };
 
 export const SYNC_BATCH_SIZE = 10;
-export const DOUYIN_SYNC_BATCH_SIZE = 1;
+export const DOUYIN_SYNC_BATCH_SIZE = 3;
 export const DOUYIN_CIRCUIT_BREAKER_THRESHOLD = 3;
 export const MAX_KNOWN_DOUYIN_VIDEO_IDS = 100;
 export const SYNC_REQUEST_TIMEOUT_MS = 20 * 60 * 1000;
