@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
+import { buildSyncBatches, mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
 import { MAX_FEED_NAME_LENGTH, MAX_FEED_TITLE_LENGTH } from "@/lib/feed-storage";
 import type { Creator, FeedState, VideoItem } from "@/lib/feed-types";
 
@@ -131,5 +131,39 @@ describe("mergeSyncResponse", () => {
     expect(result.videos[0].publishedAt).toBeUndefined();
     expect(result.creators[0].name).toHaveLength(MAX_FEED_NAME_LENGTH);
     expect(result.creators[0].avatarUrl).toBeUndefined();
+  });
+});
+
+describe("buildSyncBatches", () => {
+  it("keeps Douyin batches to one creator and Bilibili batches to ten", () => {
+    const creators: Creator[] = [
+      ...Array.from({ length: 11 }, (_, index) => ({
+        ...creator,
+        id: `bilibili-${index}`,
+      })),
+      { ...creator, id: "douyin-1", platform: "douyin", profileUrl: "https://www.douyin.com/user/1" },
+      { ...creator, id: "douyin-2", platform: "douyin", profileUrl: "https://www.douyin.com/user/2" },
+    ];
+
+    expect(buildSyncBatches(creators).map((batch) => batch.map((item) => item.id))).toEqual([
+      Array.from({ length: 10 }, (_, index) => `bilibili-${index}`),
+      ["bilibili-10"],
+      ["douyin-1"],
+      ["douyin-2"],
+    ]);
+  });
+
+  it("does not mix adjacent platforms in a batch", () => {
+    const creators: Creator[] = [
+      creator,
+      { ...creator, id: "douyin-1", platform: "douyin", profileUrl: "https://www.douyin.com/user/1" },
+      { ...creator, id: "bilibili-2" },
+    ];
+
+    expect(buildSyncBatches(creators).map((batch) => batch.map((item) => item.platform))).toEqual([
+      ["bilibili"],
+      ["douyin"],
+      ["bilibili"],
+    ]);
   });
 });

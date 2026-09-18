@@ -21,8 +21,8 @@ import {
 import {
   markBatchFailed,
   mergeSyncResponse,
+  buildSyncBatches,
   requestSyncBatch,
-  SYNC_BATCH_SIZE,
   syncRequestError,
   type SyncProgress,
   type SyncStatus,
@@ -386,11 +386,12 @@ export function FeedProvider({ children }: { children: ReactNode }) {
       publish({ status: "loading", message: `准备同步 ${targets.length} 位博主`, failedCreatorIds: [] });
 
       try {
-        for (let start = 0; start < targets.length; start += SYNC_BATCH_SIZE) {
-        const batch = targets.slice(start, start + SYNC_BATCH_SIZE);
+        for (const batch of buildSyncBatches(targets)) {
+        const batchStart = processed + 1;
+        const batchEnd = processed + batch.length;
         const currentNames = batch.slice(0, 2).map((creator) => creator.name).join("、");
         const nameSuffix = batch.length > 2 ? "等" : "";
-        publish({ currentStart: start + 1, currentEnd: start + batch.length, message: `正在同步第 ${start + 1}-${start + batch.length} 位博主：${currentNames}${nameSuffix}` });
+        publish({ currentStart: batchStart, currentEnd: batchEnd, message: `正在同步第 ${batchStart}-${batchEnd} 位博主：${currentNames}${nameSuffix}` });
 
         let data;
         try {
@@ -412,7 +413,7 @@ export function FeedProvider({ children }: { children: ReactNode }) {
           failed += batch.length;
           processed += batch.length;
           failedIdsRef.current = Array.from(new Set([...failedIdsRef.current, ...batch.map((creator) => creator.id)]));
-          publish({ message: `第 ${start + 1}-${start + batch.length} 位同步失败，继续处理后续博主` });
+          publish({ message: `第 ${batchStart}-${batchEnd} 位同步失败，继续处理后续博主` });
           continue;
         }
 
