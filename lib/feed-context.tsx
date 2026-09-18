@@ -22,8 +22,10 @@ import {
   markBatchFailed,
   mergeSyncResponse,
   buildSyncBatches,
+  getDouyinCooldownMs,
   requestSyncBatch,
   syncRequestError,
+  waitWithSignal,
   type SyncProgress,
   type SyncStatus,
 } from "@/lib/feed-sync";
@@ -386,55 +388,65 @@ export function FeedProvider({ children }: { children: ReactNode }) {
       publish({ status: "loading", message: `准备同步 ${targets.length} 位博主`, failedCreatorIds: [] });
 
       try {
-        for (const batch of buildSyncBatches(targets)) {
-        const batchStart = processed + 1;
-        const batchEnd = processed + batch.length;
-        const currentNames = batch.slice(0, 2).map((creator) => creator.name).join("、");
-        const nameSuffix = batch.length > 2 ? "等" : "";
-        publish({ currentStart: batchStart, currentEnd: batchEnd, message: `正在同步第 ${batchStart}-${batchEnd} 位博主：${currentNames}${nameSuffix}` });
+        const batches = buildSyncBatches(targets);
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+          const batch = batches[batchIndex];
+          const batchStart = processed + 1;
+          const batchEnd = processed + batch.length;
+          const currentNames = batch.slice(0, 2).map((creator) => creator.name).join("、");
+          const nameSuffix = batch.length > 2 ? "等" : "";
+          const hasAnotherDouyinBatch = batch[0]?.platform === "douyin"
+            && batches.slice(batchIndex + 1).some((nextBatch) => nextBatch[0]?.platform === "douyin");
+          publish({ currentStart: batchStart, currentEnd: batchEnd, message: `正在同步第 ${batchStart}-${batchEnd} 位博主：${currentNames}${nameSuffix}` });
 
-        let data;
-        try {
-          data = await requestSyncBatch(batch, controller.signal);
-          if (!data.configured) throw new Error(data.error || "未配置本机抓取服务，请先运行 npm run start:local");
-          if (!Array.isArray(data.results)) throw new Error(data.error || "同步服务返回的数据不完整");
-        } catch (error) {
-          if (controller.signal.aborted) {
+          let data;
+          try {
+            data = await requestSyncBatch(batch, controller.signal);
+            if (!data.configured) throw new Error(data.error || "未配置本机抓取服务，请先运行 npm run start:local");
+            if (!Array.isArray(data.results)) throw new Error(data.error || "同步服务返回的数据不完整");
+          } catch (error) {
+            if (controller.signal.aborted) {
+              interrupted = true;
+              break;
+            }
+            const message = syncRequestError(error);
+            if (dataEpochRef.current === epochAtStart && runIdRef.current === runId) {
+              const marked = markBatchFailed({ creators: creatorsRef.current, videos: videosRef.current }, batch, message);
+              creatorsRef.current = marked.creators;
+              setCreatorsState(marked.creators);
+              stateChanged = true;
+            }
+            failed += batch.length;
+            processed += batch.length;
+            failedIdsRef.current = Array.from(new Set([...failedIdsRef.current, ...batch.map((creator) => creator.id)]));
+            publish({ message: `第 ${batchStart}-${batchEnd} 位同步失败，继续处理后续博主` });
+            if (hasAnotherDouyinBatch) {
+              await waitWithSignal(getDouyinCooldownMs(), controller.signal);
+            }
+            continue;
+          }
+
+          if (controller.signal.aborted || runIdRef.current !== runId || dataEpochRef.current !== epochAtStart) {
             interrupted = true;
             break;
           }
-          const message = syncRequestError(error);
-          if (dataEpochRef.current === epochAtStart && runIdRef.current === runId) {
-            const marked = markBatchFailed({ creators: creatorsRef.current, videos: videosRef.current }, batch, message);
-            creatorsRef.current = marked.creators;
-            setCreatorsState(marked.creators);
-            stateChanged = true;
-          }
-          failed += batch.length;
+
+          const merged = mergeSyncResponse({ creators: creatorsRef.current, videos: videosRef.current }, batch, data);
+          creatorsRef.current = merged.creators;
+          videosRef.current = merged.videos;
+          setCreatorsState(merged.creators);
+          setVideosState(merged.videos);
+          stateChanged = true;
+          const batchFailed = merged.failedCreatorIds.length;
+          failed += batchFailed;
+          succeeded += batch.length - batchFailed;
           processed += batch.length;
-          failedIdsRef.current = Array.from(new Set([...failedIdsRef.current, ...batch.map((creator) => creator.id)]));
-          publish({ message: `第 ${batchStart}-${batchEnd} 位同步失败，继续处理后续博主` });
-          continue;
-        }
-
-        if (controller.signal.aborted || runIdRef.current !== runId || dataEpochRef.current !== epochAtStart) {
-          interrupted = true;
-          break;
-        }
-
-        const merged = mergeSyncResponse({ creators: creatorsRef.current, videos: videosRef.current }, batch, data);
-        creatorsRef.current = merged.creators;
-        videosRef.current = merged.videos;
-        setCreatorsState(merged.creators);
-        setVideosState(merged.videos);
-        stateChanged = true;
-        const batchFailed = merged.failedCreatorIds.length;
-        failed += batchFailed;
-        succeeded += batch.length - batchFailed;
-        processed += batch.length;
-        incomingCount += merged.incomingCount;
-        failedIdsRef.current = Array.from(new Set([...failedIdsRef.current, ...merged.failedCreatorIds]));
-        publish({ message: `已处理 ${processed}/${targets.length} 位博主，读取 ${incomingCount} 条视频` });
+          incomingCount += merged.incomingCount;
+          failedIdsRef.current = Array.from(new Set([...failedIdsRef.current, ...merged.failedCreatorIds]));
+          publish({ message: `已处理 ${processed}/${targets.length} 位博主，读取 ${incomingCount} 条视频` });
+          if (hasAnotherDouyinBatch) {
+            await waitWithSignal(getDouyinCooldownMs(), controller.signal);
+          }
         }
 
         if (interrupted) {

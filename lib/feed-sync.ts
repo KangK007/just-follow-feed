@@ -129,7 +129,7 @@ function createAbortError() {
     : Object.assign(new Error("同步已取消"), { name: "AbortError" });
 }
 
-function waitWithSignal(milliseconds: number, signal: AbortSignal) {
+export function waitWithSignal(milliseconds: number, signal: AbortSignal) {
   if (signal.aborted) return Promise.reject(createAbortError());
   return new Promise<void>((resolve, reject) => {
     const cleanup = () => signal.removeEventListener("abort", onAbort);

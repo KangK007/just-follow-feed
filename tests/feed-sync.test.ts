@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSyncBatches, mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
+import { buildSyncBatches, getDouyinCooldownMs, mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
 import { MAX_FEED_NAME_LENGTH, MAX_FEED_TITLE_LENGTH } from "@/lib/feed-storage";
 import type { Creator, FeedState, VideoItem } from "@/lib/feed-types";
 
@@ -165,5 +165,12 @@ describe("buildSyncBatches", () => {
       ["douyin"],
       ["bilibili"],
     ]);
+  });
+});
+
+describe("Douyin sync pacing", () => {
+  it("keeps the cooldown within the configured 8-14 second range", () => {
+    expect(getDouyinCooldownMs(() => 0)).toBe(8_000);
+    expect(getDouyinCooldownMs(() => 1 - Number.EPSILON)).toBe(14_000);
   });
 });
