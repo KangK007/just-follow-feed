@@ -118,6 +118,12 @@ export function collectKnownDouyinVideoIds(videos: VideoItem[], creatorId: strin
   return Array.from(ids);
 }
 
+export function getKnownDouyinVideoIdsForSync(creator: Creator, videos: VideoItem[]) {
+  return creator.platform === "douyin" && !creator.syncError
+    ? collectKnownDouyinVideoIds(videos, creator.id)
+    : [];
+}
+
 function isAbortError(error: unknown) {
   return (typeof DOMException !== "undefined" && error instanceof DOMException && error.name === "AbortError")
     || (error instanceof Error && error.name === "AbortError");
@@ -179,13 +185,13 @@ async function requestSyncBatchOnce(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        creators: batch.map(({ id, platform, profileUrl, name }) => ({
-          id,
-          platform,
-          profileUrl,
-          name,
-          ...(platform === "douyin"
-            ? { knownVideoIds: collectKnownDouyinVideoIds(existingVideos, id) }
+        creators: batch.map((creator) => ({
+          id: creator.id,
+          platform: creator.platform,
+          profileUrl: creator.profileUrl,
+          name: creator.name,
+          ...(creator.platform === "douyin"
+            ? { knownVideoIds: getKnownDouyinVideoIdsForSync(creator, existingVideos) }
             : {}),
         })),
       }),

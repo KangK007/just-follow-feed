@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildSyncBatches, getDouyinCooldownMs, mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
+import { buildSyncBatches, getDouyinCooldownMs, getKnownDouyinVideoIdsForSync, mergeSyncResponse, type SyncResponse } from "@/lib/feed-sync";
 import { MAX_FEED_NAME_LENGTH, MAX_FEED_TITLE_LENGTH } from "@/lib/feed-storage";
 import type { Creator, FeedState, VideoItem } from "@/lib/feed-types";
 
@@ -163,6 +163,31 @@ describe("buildSyncBatches", () => {
       ["bilibili"],
       ["douyin"],
       ["bilibili"],
+    ]);
+  });
+
+  it("keeps a failed Douyin creator on a fresh snapshot path for the next retry", () => {
+    const failed = {
+      id: "douyin-failed",
+      platform: "douyin" as const,
+      profileUrl: "https://www.douyin.com/user/failed",
+      name: "Failed creator",
+      enabled: true,
+      syncError: "抖音返回空白投稿数据",
+    };
+    const existing = {
+      id: "sync-douyin-old",
+      platform: "douyin" as const,
+      videoUrl: "https://www.douyin.com/video/1234567890123456789",
+      creatorId: failed.id,
+      title: "Old video",
+      source: "feed-sync" as const,
+      createdAt: "2026-09-01T00:00:00.000Z",
+    };
+
+    expect(getKnownDouyinVideoIdsForSync(failed, [existing])).toEqual([]);
+    expect(getKnownDouyinVideoIdsForSync({ ...failed, syncError: undefined }, [existing])).toEqual([
+      "1234567890123456789",
     ]);
   });
 });
