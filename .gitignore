@@ -1,0 +1,13 @@
+node_modules/
+.next/
+out/
+.npm-cache/
+*.tsbuildinfo
+*.log
+__pycache__/
+*.py[cod]
+.DS_Store
+.env*
+!.env.example
+.local/
+outputs/
